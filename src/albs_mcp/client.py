@@ -14,6 +14,13 @@ from .constants import (
 )
 
 
+def extract_el_version(pkg_name: str) -> str | None:
+    """Extract .elN suffix from a package name/tag/URL (e.g. '.el10' from '...-0.16-5.el10')."""
+    cleaned = pkg_name.replace(".src.rpm", "").split("-")[-1]
+    match = re.search(r"\.el\d{1,2}[^-]*", cleaned)
+    return match.group(0) if match else None
+
+
 class ALBSClient:
     def __init__(self, jwt_token: str | None = None, timeout: float = 30.0):
         self.jwt_token = jwt_token
@@ -163,6 +170,7 @@ class ALBSClient:
         with_opts: list[str] | None = None,
         without_opts: list[str] | None = None,
         modules: list[str] | None = None,
+        add_epel_dist: bool = False,
     ) -> dict[str, Any]:
         if not from_tag and not branch and not from_srpm:
             raise ValueError("At least one of branch, from_tag, or from_srpm must be set")
@@ -206,6 +214,12 @@ class ALBSClient:
                 }
                 if ref_type != 3:
                     task["git_ref"] = pkg_tag if from_tag else branch
+                if add_epel_dist and (from_tag or from_srpm):
+                    dist = extract_el_version(pkg_name)
+                    if dist:
+                        task["mock_options"] = {
+                            "definitions": {"dist": f"{dist}.alma_altarch"}
+                        }
                 tasks.append(task)
 
         data: dict[str, Any] = {

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from albs_mcp.client import ALBSClient
+from albs_mcp.client import ALBSClient, extract_el_version
 from albs_mcp.constants import ALBS_API
 
 
@@ -503,6 +503,108 @@ async def test_create_build_linked_builds(client):
     )
     call_data = client._http.post.call_args[1]["json"]
     assert call_data["linked_builds"] == [100, 200]
+
+
+# ── extract_el_version ────────────────────────────────────────────────
+
+def test_extract_el_version_from_tag():
+    assert extract_el_version("imports/c9s/bash-5.1-1.el9") == ".el9"
+
+
+def test_extract_el_version_from_tag_with_suffix():
+    assert extract_el_version("imports/c10s/ipa-healthcheck-0.16-5.el10") == ".el10"
+
+
+def test_extract_el_version_from_srpm_url():
+    url = "https://dl.fedoraproject.org/pub/epel/10/Everything/source/tree/Packages/p/pkg-1.0-1.el10.src.rpm"
+    assert extract_el_version(url) == ".el10"
+
+
+def test_extract_el_version_from_srpm_url_el10_3():
+    url = "https://dl.fedoraproject.org/pub/epel/10/Everything/source/tree/Packages/p/pkg-2.0-3.el10_3.src.rpm"
+    assert extract_el_version(url) == ".el10_3"
+
+
+def test_extract_el_version_from_srpm_url_el10_0():
+    url = "https://dl.fedoraproject.org/pub/epel/10/Everything/source/tree/Packages/p/pkg-1.5-1.el10_0.src.rpm"
+    assert extract_el_version(url) == ".el10_0"
+
+
+def test_extract_el_version_no_match():
+    assert extract_el_version("some-package-without-el") is None
+
+
+def test_extract_el_version_el8():
+    assert extract_el_version("pkg-1.0-1.el8_9") == ".el8_9"
+
+
+# ── create_build: add_epel_dist ──────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_build_add_epel_dist_from_srpm(client):
+    client._platforms_cache = {"AlmaLinux-10": ["x86_64_v2"]}
+    create_resp = {"id": 88888, "created_at": "2026-03-10T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    url = "https://dl.fedoraproject.org/pub/epel/10/Everything/source/tree/Packages/p/pkg-1.0-1.el10.src.rpm"
+    await client.create_build(
+        packages=[{url: "None"}],
+        platform="AlmaLinux-10",
+        from_srpm=True,
+        add_epel_dist=True,
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    task = call_data["tasks"][0]
+    assert task["mock_options"] == {"definitions": {"dist": ".el10.alma_altarch"}}
+
+
+@pytest.mark.asyncio
+async def test_create_build_add_epel_dist_from_tag(client):
+    client._platforms_cache = {"AlmaLinux-9": ["x86_64"]}
+    create_resp = {"id": 88887, "created_at": "2026-03-10T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    await client.create_build(
+        packages=[{"imports/c9s/bash-5.1-1.el9": "imports/c9s/bash-5.1-1.el9"}],
+        platform="AlmaLinux-9",
+        from_tag=True,
+        add_epel_dist=True,
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    task = call_data["tasks"][0]
+    assert task["mock_options"] == {"definitions": {"dist": ".el9.alma_altarch"}}
+
+
+@pytest.mark.asyncio
+async def test_create_build_add_epel_dist_no_el_version(client):
+    """If dist suffix can't be extracted, no mock_options added."""
+    client._platforms_cache = {"AlmaLinux-9": ["x86_64"]}
+    create_resp = {"id": 88886, "created_at": "2026-03-10T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    await client.create_build(
+        packages=[{"https://example.com/pkg-nodist.src.rpm": "None"}],
+        platform="AlmaLinux-9",
+        from_srpm=True,
+        add_epel_dist=True,
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    task = call_data["tasks"][0]
+    assert "mock_options" not in task
+
+
+@pytest.mark.asyncio
+async def test_create_build_add_epel_dist_ignored_for_branch(client):
+    """add_epel_dist has no effect for branch builds."""
+    client._platforms_cache = {"AlmaLinux-9": ["x86_64"]}
+    create_resp = {"id": 88885, "created_at": "2026-03-10T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    await client.create_build(
+        packages=[{"bash": "None"}],
+        platform="AlmaLinux-9",
+        branch="c9s",
+        add_epel_dist=True,
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    task = call_data["tasks"][0]
+    assert "mock_options" not in task
 
 
 # ── sign_build ────────────────────────────────────────────────────────

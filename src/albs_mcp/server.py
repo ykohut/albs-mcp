@@ -50,8 +50,10 @@ This adds --define "__spec_check_template exit 0;" to the mock definitions.
 ## Building EPEL packages (SRPMs from dl.fedoraproject.org/pub/epel/)
 When a user wants to build packages from EPEL SRPMs, you MUST handle the following \
 BEFORE calling create_build:
-1. ASK the user if they want to enable the add-epel-dist module, \
-UNLESS they already mentioned it. If yes, pass add_epel_dist=True.
+1. ASK the user if they want to enable add-epel-dist, \
+UNLESS they already mentioned it. If yes, pass add_epel_dist=True. \
+This extracts the .elN dist suffix from each package name/URL and sets a per-task \
+mock definition: dist=".elN.alma_altarch". Only works with from_tag or from_srpm.
 2. Add the correct EPEL flavors via the flavors parameter:
    - For almalinux-10: flavors=["EPEL-10", "EPEL-10_altarch"]
    - For almalinux-kitten-10: flavors=["EPEL-10", "EPEL-Kitten_altarch"]
@@ -403,8 +405,10 @@ async def create_build(
                    (x86_64_v2 for EPEL builds).
         skip_tests: Disable %check phase by adding
                     --define "__spec_check_template exit 0;" to mock definitions.
-        add_epel_dist: Enable the add-epel-dist module in mock chroot.
-                       Recommended for EPEL builds.
+        add_epel_dist: Extract .elN dist suffix from each package name/URL
+                       and set it as a per-task mock definition:
+                       dist=".elN.alma_altarch". Only works with from_tag
+                       or from_srpm. Recommended for EPEL-altarch builds.
         beta: Enable beta flavor.
         secureboot: Enable SecureBoot signing.
         nosecureboot: Override secureboot requirement for SB packages.
@@ -442,13 +446,17 @@ async def create_build(
         defs["__spec_check_template"] = "exit 0;"
         notes.append("Tests disabled (__spec_check_template)")
 
-    # ── add-epel-dist module ──────────────────────────────────────────
+    # ── add-epel-dist: per-task dist definition ─────────────────────
     if add_epel_dist:
-        if modules is None:
-            modules = []
-        if "add-epel-dist" not in modules:
-            modules.append("add-epel-dist")
-            notes.append("Module enabled: add-epel-dist")
+        if not from_tag and not from_srpm:
+            return (
+                "Error: add_epel_dist requires from_tag or from_srpm. "
+                "The dist suffix is extracted from the package name/URL."
+            )
+        notes.append(
+            "add-epel-dist: per-task dist definition "
+            "(.elN.alma_altarch) from package name"
+        )
 
     client = _get_client()
     try:
@@ -469,6 +477,7 @@ async def create_build(
             with_opts=with_opts,
             without_opts=without_opts,
             modules=modules,
+            add_epel_dist=add_epel_dist,
         )
         lines = [
             "Build created successfully!",

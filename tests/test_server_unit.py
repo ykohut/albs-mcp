@@ -418,7 +418,7 @@ async def test_create_build_epel_flavors_passed_explicitly(mock_client):
 # ── create_build: add_epel_dist ──────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_build_add_epel_dist(mock_client):
+async def test_create_build_add_epel_dist_from_srpm(mock_client):
     result = await create_build(
         packages=[EPEL_SRPM],
         platform="almalinux-10",
@@ -427,20 +427,33 @@ async def test_create_build_add_epel_dist(mock_client):
     )
     assert "add-epel-dist" in result
     call_args = mock_client.create_build.call_args[1]
-    assert "add-epel-dist" in call_args["modules"]
+    assert call_args["add_epel_dist"] is True
 
 
 @pytest.mark.asyncio
-async def test_create_build_add_epel_dist_no_duplicate(mock_client):
-    await create_build(
-        packages=[EPEL_SRPM],
-        platform="almalinux-10",
-        from_srpm=True,
+async def test_create_build_add_epel_dist_from_tag(mock_client):
+    result = await create_build(
+        packages=["bash imports/c9s/bash-5.1-1.el9"],
+        platform="AlmaLinux-9",
+        from_tag=True,
         add_epel_dist=True,
-        modules=["add-epel-dist"],
     )
+    assert "add-epel-dist" in result
     call_args = mock_client.create_build.call_args[1]
-    assert call_args["modules"].count("add-epel-dist") == 1
+    assert call_args["add_epel_dist"] is True
+
+
+@pytest.mark.asyncio
+async def test_create_build_add_epel_dist_requires_tag_or_srpm(mock_client):
+    result = await create_build(
+        packages=["bash"],
+        platform="AlmaLinux-9",
+        branch="c9s",
+        add_epel_dist=True,
+    )
+    assert "Error" in result
+    assert "from_tag or from_srpm" in result
+    mock_client.create_build.assert_not_called()
 
 
 # ── sign_build ────────────────────────────────────────────────────────

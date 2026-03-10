@@ -128,7 +128,7 @@ Architectures default to the full platform list (i686, x86_64, aarch64, ppc64le,
 ```bash
 pip install -e ".[test]"
 
-# Unit tests (no network, 70 tests)
+# Unit tests (no network, 82 tests)
 pytest tests/test_client_unit.py tests/test_server_unit.py -v
 
 # Integration tests (hits real ALBS API, read-only, 21 tests)
