@@ -44,11 +44,30 @@ whole file at once. Always use read_log_tail first, then read_log_range if neede
 3. Call create_build() with the collected parameters.
 4. Platform names and arch_list are validated dynamically against ALBS. \
 If you need to show available platforms, call get_platforms().
+5. Use skip_tests=True to disable the %check phase in any build. \
+This adds --define "__spec_check_template exit 0;" to the mock definitions.
+
+## Building EPEL packages (SRPMs from dl.fedoraproject.org/pub/epel/)
+When a user wants to build packages from EPEL SRPMs, you MUST handle the following \
+BEFORE calling create_build:
+1. ASK the user if they want to enable the add-epel-dist module, \
+UNLESS they already mentioned it. If yes, pass add_epel_dist=True.
+2. Add the correct EPEL flavors via the flavors parameter:
+   - For almalinux-10: flavors=["EPEL-10", "EPEL-10_altarch"]
+   - For almalinux-kitten-10: flavors=["EPEL-10", "EPEL-Kitten_altarch"]
+3. Use arch_list=["x86_64_v2"] unless the user explicitly specified different architectures.
 
 ## Signing builds (requires JWT token)
-1. ASK the user which build to sign and which sign key to use.
+1. First call get_build_info(build_id) and present a short summary to the user: \
+platform, architectures, package list, and flavors. The user needs this to decide \
+which sign key to use.
 2. Call get_sign_keys() to show available keys so the user can choose.
-3. Call sign_build(build_id, sign_key_id) to create a sign task.
+3. If the build has EPEL*_altarch flavors and was built only for x86_64_v2, \
+this is an EPEL-altarch build. Tell the user that EPEL flavors are present \
+and the build targets only x86_64_v2, which indicates it should likely be \
+signed with an EPEL key.
+4. ASK the user to confirm the sign key before signing.
+5. Call sign_build(build_id, sign_key_id) to create a sign task.
 
 ## Important notes
 - Read-only tools work without authentication.
@@ -111,15 +130,27 @@ async def get_build_info(build_id: int) -> str:
     client = _get_client()
     build = await client.get_build(build_id)
 
+    platforms = {
+        t["platform"]["name"]
+        for t in build["tasks"] if t.get("platform")
+    }
+    arches = sorted({t["arch"] for t in build["tasks"]})
+    flavors = [f["name"] for f in build.get("platform_flavors", [])]
+
     lines = [
         f"Build #{build['id']}",
         f"Created: {build['created_at']}",
         f"Finished: {build.get('finished_at', 'still running')}",
         f"Owner: {build['owner']['username']}",
+        f"Platform: {', '.join(sorted(platforms)) or 'N/A'}",
+        f"Architectures: {', '.join(arches)}",
         f"Released: {build['released']}",
-        "",
-        "Tasks:",
     ]
+    if flavors:
+        lines.append(f"Flavors: {', '.join(flavors)}")
+
+    lines.append("")
+    lines.append("Tasks:")
 
     for t in build["tasks"]:
         status = BUILD_TASK_STATUS.get(t["status"], f"unknown({t['status']})")
@@ -338,6 +369,8 @@ async def create_build(
     from_srpm: bool = False,
     tags: list[str] | None = None,
     arch_list: list[str] | None = None,
+    skip_tests: bool = False,
+    add_epel_dist: bool = False,
     beta: bool = False,
     secureboot: bool = False,
     nosecureboot: bool = False,
@@ -354,6 +387,9 @@ async def create_build(
     Platforms and allowed architectures are fetched dynamically from ALBS.
     Use get_platforms to see available options.
 
+    For EPEL builds (SRPMs from dl.fedoraproject.org/pub/epel/), the tool
+    automatically applies EPEL-specific flavors and defaults arch to x86_64_v2.
+
     Args:
         packages: List of package names (for git/branch) or SRPM URLs (for from_srpm).
                   For from_tag: use "pkg_name tag_name" format or just "tag_name".
@@ -363,7 +399,12 @@ async def create_build(
         from_srpm: Build from source RPM URLs.
         tags: Explicit tags for each package when from_tag=True
               (must match packages length).
-        arch_list: Architectures to build. Default: all for the platform.
+        arch_list: Architectures to build. Default: all for the platform
+                   (x86_64_v2 for EPEL builds).
+        skip_tests: Disable %check phase by adding
+                    --define "__spec_check_template exit 0;" to mock definitions.
+        add_epel_dist: Enable the add-epel-dist module in mock chroot.
+                       Recommended for EPEL builds.
         beta: Enable beta flavor.
         secureboot: Enable SecureBoot signing.
         nosecureboot: Override secureboot requirement for SB packages.
@@ -392,6 +433,22 @@ async def create_build(
 
     defs = json.loads(definitions) if definitions else None
     excl = excludes.split() if excludes else None
+    notes: list[str] = []
+
+    # ── skip_tests: disable %check ────────────────────────────────────
+    if skip_tests:
+        if defs is None:
+            defs = {}
+        defs["__spec_check_template"] = "exit 0;"
+        notes.append("Tests disabled (__spec_check_template)")
+
+    # ── add-epel-dist module ──────────────────────────────────────────
+    if add_epel_dist:
+        if modules is None:
+            modules = []
+        if "add-epel-dist" not in modules:
+            modules.append("add-epel-dist")
+            notes.append("Module enabled: add-epel-dist")
 
     client = _get_client()
     try:
@@ -413,12 +470,18 @@ async def create_build(
             without_opts=without_opts,
             modules=modules,
         )
-        return (
-            f"Build created successfully!\n"
-            f"Build ID: {result['id']}\n"
-            f"Created at: {result['created_at']}\n"
-            f"URL: https://build.almalinux.org/build/{result['id']}"
-        )
+        lines = [
+            "Build created successfully!",
+            f"Build ID: {result['id']}",
+            f"Created at: {result['created_at']}",
+            f"URL: https://build.almalinux.org/build/{result['id']}",
+        ]
+        if notes:
+            lines.append("")
+            lines.append("Applied settings:")
+            for note in notes:
+                lines.append(f"  • {note}")
+        return "\n".join(lines)
     except PermissionError as e:
         return f"Auth error: {e}"
     except Exception as e:

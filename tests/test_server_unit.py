@@ -147,6 +147,9 @@ async def test_get_build_info_tool(mock_client):
     assert "failed" in result
     assert "glibc" in result
     assert "sign_task_id=777" in result
+    assert "Platform:" in result
+    assert "AlmaLinux-9" in result
+    assert "Architectures:" in result
 
 
 @pytest.mark.asyncio
@@ -158,6 +161,22 @@ async def test_get_build_info_shows_all_tasks(mock_client):
     assert "x86_64" in result
     assert "aarch64" in result
     assert "s390x" in result
+
+
+@pytest.mark.asyncio
+async def test_get_build_info_shows_flavors(mock_client):
+    build_with_flavors = {
+        **SAMPLE_BUILD,
+        "platform_flavors": [
+            {"name": "EPEL-10"},
+            {"name": "EPEL-10_altarch"},
+        ],
+    }
+    mock_client.get_build = AsyncMock(return_value=build_with_flavors)
+    result = await get_build_info(50000)
+    assert "Flavors:" in result
+    assert "EPEL-10" in result
+    assert "EPEL-10_altarch" in result
 
 
 # ── get_failed_tasks ──────────────────────────────────────────────────
@@ -327,6 +346,101 @@ async def test_create_build_validation_error(mock_client):
     mock_client.create_build = AsyncMock(side_effect=ValueError("bad arch"))
     result = await create_build(packages=["bash"], platform="AlmaLinux-9", branch="c9s")
     assert "Error creating build" in result
+
+
+# ── create_build: skip_tests ──────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_build_skip_tests(mock_client):
+    result = await create_build(
+        packages=["bash"],
+        platform="AlmaLinux-9",
+        branch="c9s",
+        skip_tests=True,
+    )
+    assert "Build created successfully" in result
+    assert "__spec_check_template" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["definitions"] == {"__spec_check_template": "exit 0;"}
+
+
+@pytest.mark.asyncio
+async def test_create_build_skip_tests_merges_definitions(mock_client):
+    result = await create_build(
+        packages=["bash"],
+        platform="AlmaLinux-9",
+        branch="c9s",
+        skip_tests=True,
+        definitions='{"dist": ".el9"}',
+    )
+    assert "Build created successfully" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["definitions"] == {
+        "dist": ".el9",
+        "__spec_check_template": "exit 0;",
+    }
+
+
+# ── create_build: EPEL params (AI passes explicitly) ─────────────────
+
+EPEL_SRPM = "https://dl.fedoraproject.org/pub/epel/10/Everything/source/tree/Packages/p/pkg-1.0-1.el10.src.rpm"
+
+
+@pytest.mark.asyncio
+async def test_create_build_epel_no_auto_detection(mock_client):
+    """EPEL URLs should NOT trigger automatic arch/flavor changes."""
+    await create_build(
+        packages=[EPEL_SRPM],
+        platform="almalinux-10",
+        from_srpm=True,
+    )
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["arch_list"] is None
+    assert call_args["additional_flavors"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_build_epel_flavors_passed_explicitly(mock_client):
+    """AI passes EPEL flavors explicitly after consulting the user."""
+    result = await create_build(
+        packages=[EPEL_SRPM],
+        platform="almalinux-10",
+        from_srpm=True,
+        flavors=["EPEL-10", "EPEL-10_altarch"],
+        arch_list=["x86_64_v2"],
+    )
+    assert "Build created successfully" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["additional_flavors"] == ["EPEL-10", "EPEL-10_altarch"]
+    assert call_args["arch_list"] == ["x86_64_v2"]
+
+
+# ── create_build: add_epel_dist ──────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_build_add_epel_dist(mock_client):
+    result = await create_build(
+        packages=[EPEL_SRPM],
+        platform="almalinux-10",
+        from_srpm=True,
+        add_epel_dist=True,
+    )
+    assert "add-epel-dist" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert "add-epel-dist" in call_args["modules"]
+
+
+@pytest.mark.asyncio
+async def test_create_build_add_epel_dist_no_duplicate(mock_client):
+    await create_build(
+        packages=[EPEL_SRPM],
+        platform="almalinux-10",
+        from_srpm=True,
+        add_epel_dist=True,
+        modules=["add-epel-dist"],
+    )
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["modules"].count("add-epel-dist") == 1
 
 
 # ── sign_build ────────────────────────────────────────────────────────

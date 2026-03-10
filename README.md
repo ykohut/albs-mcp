@@ -42,67 +42,28 @@ ALBS produces several log files per build task. The key ones for debugging:
 pip install git+https://github.com/AlmaLinux/albs-mcp.git
 ```
 
-Or with [uv](https://docs.astral.sh/uv/):
+## Authentication
 
-```bash
-uv pip install git+https://github.com/AlmaLinux/albs-mcp.git
+The server reads the JWT token from (checked in order):
+
+1. `ALBS_JWT_TOKEN` environment variable
+2. `~/.albs/credentials` file (Python dict with a `token` key):
+
+```python
+{"token": "eyJ..."}
 ```
 
-## Quick start
+Without a token the server works in read-only mode.
 
-### Read-only (no token)
-
-```bash
-albs-mcp
-```
-
-### With JWT token (enables build creation + signing)
-
-```bash
-albs-mcp --token YOUR_JWT_TOKEN
-```
-
-The token can also be set via env var:
-
-```bash
-ALBS_JWT_TOKEN=xxx albs-mcp
-```
+> **Never commit real tokens.** Use env vars or `~/.albs/credentials`, not CLI arguments.
 
 ## Cursor / Claude Desktop config
-
-### Read-only
 
 ```json
 {
   "mcpServers": {
     "albs": {
       "command": "albs-mcp"
-    }
-  }
-}
-```
-
-### With uvx (no install needed)
-
-```json
-{
-  "mcpServers": {
-    "albs": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/AlmaLinux/albs-mcp.git", "albs-mcp"]
-    }
-  }
-}
-```
-
-### With token
-
-```json
-{
-  "mcpServers": {
-    "albs": {
-      "command": "albs-mcp",
-      "args": ["--token", "YOUR_JWT_TOKEN"]
     }
   }
 }
@@ -167,13 +128,13 @@ Architectures default to the full platform list (i686, x86_64, aarch64, ppc64le,
 ```bash
 pip install -e ".[test]"
 
-# Unit tests (no network, 63 tests)
+# Unit tests (no network, 70 tests)
 pytest tests/test_client_unit.py tests/test_server_unit.py -v
 
 # Integration tests (hits real ALBS API, read-only, 21 tests)
 pytest tests/test_integration.py -v
 
-# All 84 tests
+# All tests
 pytest -v
 ```
 

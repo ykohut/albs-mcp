@@ -37,3 +37,14 @@ SECURE_BOOT_PACKAGES = [
 KEY_LOG_TYPES = ["mock_build", "mock_stderr", "mock_root"]
 
 LOG_LINES_PER_CHUNK = 3000
+
+# ── EPEL build defaults ───────────────────────────────────────────────
+
+EPEL_URL_PATTERN = "dl.fedoraproject.org/pub/epel"
+
+EPEL_PLATFORM_FLAVORS: dict[str, list[str]] = {
+    "almalinux-10": ["EPEL-10", "EPEL-10_altarch"],
+    "almalinux-kitten-10": ["EPEL-10", "EPEL-Kitten_altarch"],
+}
+
+EPEL_DEFAULT_ARCH = ["x86_64_v2"]
