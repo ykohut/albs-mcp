@@ -1,0 +1,318 @@
+"""Unit tests for the CLI interface with mocked command functions."""
+from __future__ import annotations
+
+import sys
+from io import StringIO
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from albs_mcp.cli import build_parser, _init
+
+
+def _invoke(args: list[str]) -> tuple[int, str]:
+    """Run the CLI with the given args, return (exit_code, stdout+stderr)."""
+    parser = build_parser()
+    parsed = parser.parse_args(args)
+    if not hasattr(parsed, "func"):
+        return 1, ""
+    _init(parsed)
+    buf = StringIO()
+    err_buf = StringIO()
+    try:
+        with patch("sys.stdout", buf), patch("sys.stderr", err_buf):
+            parsed.func(parsed)
+        return 0, buf.getvalue()
+    except SystemExit as e:
+        return e.code or 0, buf.getvalue() + err_buf.getvalue()
+
+
+# ── help ──────────────────────────────────────────────────────────────
+
+
+def test_cli_no_command():
+    code, _ = _invoke([])
+    assert code == 1
+
+
+def test_parser_has_subcommands():
+    parser = build_parser()
+    for action in parser._subparsers._group_actions:
+        if hasattr(action, "choices") and action.choices:
+            choices = list(action.choices.keys())
+            break
+    else:
+        choices = []
+    assert "platforms" in choices
+    assert "build-info" in choices
+    assert "failed-tasks" in choices
+    assert "search" in choices
+    assert "create-build" in choices
+    assert "sign-build" in choices
+
+
+# ── platforms ─────────────────────────────────────────────────────────
+
+
+def test_platforms():
+    with patch("albs_mcp._commands.get_platforms", new_callable=AsyncMock) as mock:
+        mock.return_value = "Platforms (2):\n  AlmaLinux-9  arches: x86_64"
+        code, out = _invoke(["platforms"])
+    assert code == 0
+    assert "AlmaLinux-9" in out
+    mock.assert_awaited_once()
+
+
+# ── build-info ────────────────────────────────────────────────────────
+
+
+def test_build_info():
+    with patch("albs_mcp._commands.get_build_info", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build #50000\nPlatform: AlmaLinux-9"
+        code, out = _invoke(["build-info", "50000"])
+    assert code == 0
+    assert "Build #50000" in out
+    mock.assert_awaited_once_with(50000)
+
+
+def test_build_info_missing_arg():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["build-info"])
+
+
+# ── failed-tasks ──────────────────────────────────────────────────────
+
+
+def test_failed_tasks():
+    with patch("albs_mcp._commands.get_failed_tasks", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build #50000: 2 failed task(s)"
+        code, out = _invoke(["failed-tasks", "50000"])
+    assert code == 0
+    assert "2 failed task(s)" in out
+    mock.assert_awaited_once_with(50000)
+
+
+# ── build-logs ────────────────────────────────────────────────────────
+
+
+def test_build_logs():
+    with patch("albs_mcp._commands.list_build_logs", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build #50000: 3 log file(s)"
+        code, out = _invoke(["build-logs", "50000"])
+    assert code == 0
+    assert "3 log file(s)" in out
+
+
+# ── download-log ──────────────────────────────────────────────────────
+
+
+def test_download_log():
+    with patch("albs_mcp._commands.download_log", new_callable=AsyncMock) as mock:
+        mock.return_value = "Downloaded: /tmp/albs-logs/50000/mock_build.log"
+        code, out = _invoke(["download-log", "50000", "mock_build.log"])
+    assert code == 0
+    assert "Downloaded:" in out
+    mock.assert_awaited_once_with(50000, "mock_build.log")
+
+
+# ── log-tail ──────────────────────────────────────────────────────────
+
+
+def test_log_tail_default():
+    with patch("albs_mcp._commands.read_log_tail", new_callable=AsyncMock) as mock:
+        mock.return_value = "=== mock.log | lines 1-100 of 100 ==="
+        code, out = _invoke(["log-tail", "50000", "mock.log"])
+    assert code == 0
+    mock.assert_awaited_once_with(50000, "mock.log", 3000)
+
+
+def test_log_tail_custom_lines():
+    with patch("albs_mcp._commands.read_log_tail", new_callable=AsyncMock) as mock:
+        mock.return_value = "tail output"
+        code, out = _invoke(["log-tail", "50000", "mock.log", "-n", "500"])
+    assert code == 0
+    mock.assert_awaited_once_with(50000, "mock.log", 500)
+
+
+# ── log-range ─────────────────────────────────────────────────────────
+
+
+def test_log_range():
+    with patch("albs_mcp._commands.read_log_range", new_callable=AsyncMock) as mock:
+        mock.return_value = "=== mock.log | lines 50-100 of 5000 ==="
+        code, out = _invoke(["log-range", "50000", "mock.log", "50", "100"])
+    assert code == 0
+    mock.assert_awaited_once_with(50000, "mock.log", 50, 100)
+
+
+# ── search ────────────────────────────────────────────────────────────
+
+
+def test_search_default():
+    with patch("albs_mcp._commands.search_builds", new_callable=AsyncMock) as mock:
+        mock.return_value = "Builds (page 1): 5 result(s)"
+        code, out = _invoke(["search"])
+    assert code == 0
+    assert "page 1" in out
+    mock.assert_awaited_once_with(1, None, None)
+
+
+def test_search_with_filters():
+    with patch("albs_mcp._commands.search_builds", new_callable=AsyncMock) as mock:
+        mock.return_value = "Builds (page 2): 1 result(s)"
+        code, out = _invoke(["search", "--page", "2", "--project", "bash", "--running"])
+    assert code == 0
+    mock.assert_awaited_once_with(2, "bash", True)
+
+
+def test_search_no_running():
+    with patch("albs_mcp._commands.search_builds", new_callable=AsyncMock) as mock:
+        mock.return_value = "Builds (page 1): 3 result(s)"
+        code, out = _invoke(["search", "--no-running"])
+    assert code == 0
+    mock.assert_awaited_once_with(1, None, False)
+
+
+# ── sign-keys ─────────────────────────────────────────────────────────
+
+
+def test_sign_keys():
+    with patch("albs_mcp._commands.get_sign_keys", new_callable=AsyncMock) as mock:
+        mock.return_value = "Sign keys:\n  id=4  name=AL9-key"
+        code, out = _invoke(["sign-keys"])
+    assert code == 0
+    assert "AL9-key" in out
+
+
+# ── flavors ───────────────────────────────────────────────────────────
+
+
+def test_flavors():
+    with patch("albs_mcp._commands.get_flavors", new_callable=AsyncMock) as mock:
+        mock.return_value = "Platform flavors (3):\n  id=  7  beta"
+        code, out = _invoke(["flavors"])
+    assert code == 0
+    assert "beta" in out
+
+
+# ── create-build ──────────────────────────────────────────────────────
+
+
+def test_create_build_branch():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!\nBuild ID: 99999"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-9", "bash", "--branch", "c9s",
+        ])
+    assert code == 0
+    assert "99999" in out
+    mock.assert_awaited_once()
+    call_kw = mock.call_args[1]
+    assert call_kw["platform"] == "AlmaLinux-9"
+    assert call_kw["packages"] == ["bash"]
+    assert call_kw["branch"] == "c9s"
+
+
+def test_create_build_from_srpm():
+    srpm = "https://example.com/pkg-1.0-1.el10.src.rpm"
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-10", srpm,
+            "--from-srpm", "--add-epel-dist",
+            "--arch", "x86_64_v2",
+            "--flavor", "EPEL-10", "--flavor", "EPEL-10_altarch",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["from_srpm"] is True
+    assert call_kw["add_epel_dist"] is True
+    assert call_kw["arch_list"] == ["x86_64_v2"]
+    assert call_kw["flavors"] == ["EPEL-10", "EPEL-10_altarch"]
+
+
+def test_create_build_multiple_packages():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-9", "bash", "glibc", "openssl",
+            "--branch", "c9s",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["packages"] == ["bash", "glibc", "openssl"]
+
+
+def test_create_build_skip_tests():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-9", "bash",
+            "--branch", "c9s", "--skip-tests",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["skip_tests"] is True
+
+
+def test_create_build_missing_packages():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["create-build", "AlmaLinux-9"])
+
+
+# ── sign-build ────────────────────────────────────────────────────────
+
+
+def test_sign_build_default_key():
+    with patch("albs_mcp._commands.sign_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Sign task created for build #50000"
+        code, out = _invoke(["sign-build", "50000"])
+    assert code == 0
+    assert "Sign task created" in out
+    mock.assert_awaited_once_with(50000, 4)
+
+
+def test_sign_build_custom_key():
+    with patch("albs_mcp._commands.sign_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Sign task created"
+        code, out = _invoke(["sign-build", "50000", "--key-id", "7"])
+    assert code == 0
+    mock.assert_awaited_once_with(50000, 7)
+
+
+# ── token / log-dir options ──────────────────────────────────────────
+
+
+def test_token_option(monkeypatch):
+    monkeypatch.delenv("ALBS_JWT_TOKEN", raising=False)
+    with patch("albs_mcp._commands.get_sign_keys", new_callable=AsyncMock) as mock:
+        mock.return_value = "Sign keys:\n  id=4"
+        code, out = _invoke(["--token", "my-secret", "sign-keys"])
+    assert code == 0
+
+
+def test_log_dir_option(monkeypatch):
+    monkeypatch.delenv("ALBS_LOG_DIR", raising=False)
+    with patch("albs_mcp._commands.get_platforms", new_callable=AsyncMock) as mock:
+        mock.return_value = "Platforms (1):"
+        code, out = _invoke(["--log-dir", "/custom/logs", "platforms"])
+    assert code == 0
+
+
+# ── exit codes ────────────────────────────────────────────────────────
+
+
+def test_error_string_returns_exit_code_1():
+    with patch("albs_mcp._commands.get_sign_keys", new_callable=AsyncMock) as mock:
+        mock.return_value = "Auth error: no token provided"
+        code, out = _invoke(["sign-keys"])
+    assert code == 1
+    assert "Auth error" in out
+
+
+def test_exception_returns_exit_code_1():
+    with patch("albs_mcp._commands.get_platforms", new_callable=AsyncMock) as mock:
+        mock.side_effect = RuntimeError("connection failed")
+        code, out = _invoke(["platforms"])
+    assert code == 1
+    assert "connection failed" in out

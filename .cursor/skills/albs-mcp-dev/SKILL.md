@@ -1,6 +1,6 @@
 ---
 name: albs-mcp-dev
-description: Develop, test, and evaluate the ALBS MCP server for AlmaLinux Build System. Use this skill whenever making changes to albs-mcp source code, adding or modifying MCP tools, fixing tests, running unit tests or evals, investigating test failures, updating server instructions, or working on eval definitions. Also use when the user mentions "запусти тесты", "запусти evals", "добавь тул", "почини тест", "добавь eval кейс", "обнови инструкции", or any development task related to albs-mcp. Even for simple changes like renaming a parameter — this skill ensures the full test/eval/docs pipeline is followed.
+description: Develop, test, and evaluate the ALBS MCP server for AlmaLinux Build System. Use this skill whenever making changes to albs-mcp source code, adding or modifying MCP tools, fixing tests, running unit tests or evals, investigating test failures, updating server instructions, or working on eval definitions. Also use when the user mentions "run tests", "run evals", "add tool", "fix test", "add eval case", "update instructions", or any development task related to albs-mcp. Even for simple changes like renaming a parameter — this skill ensures the full test/eval/docs pipeline is followed.
 ---
 
 # ALBS MCP Development
@@ -13,10 +13,13 @@ Skill for developing the ALBS MCP server. After ANY code change, run tests and e
 src/albs_mcp/
   constants.py    — URLs, status maps, EPEL defaults
   client.py       — ALBSClient: all HTTP calls to ALBS API
-  server.py       — MCP tools (FastMCP), server instructions, CLI
+  _commands.py    — shared command functions: client management, formatting, business logic
+  server.py       — thin @mcp.tool() wrappers delegating to _commands.py, server instructions
+  cli.py          — CLI (argparse), delegates to _commands.py (no MCP dependency)
 tests/
   test_client_unit.py    — client unit tests (mocked HTTP)
-  test_server_unit.py    — server tool unit tests (mocked client)
+  test_server_unit.py    — server tool unit tests (mocked client via _commands)
+  test_cli_unit.py       — CLI unit tests (mocked _commands functions)
   test_integration.py    — integration tests (real ALBS API, read-only)
 ```
 
@@ -24,7 +27,7 @@ tests/
 
 After ANY code change — no exceptions — do all of this yourself:
 
-1. **Run unit tests**: `.venv/bin/python -m pytest tests/test_client_unit.py tests/test_server_unit.py -v`
+1. **Run unit tests**: `.venv/bin/python -m pytest tests/test_client_unit.py tests/test_server_unit.py tests/test_cli_unit.py -v`
 2. **Run evals**: read `evals/evals.json` from this skill, verify ALL 20 cases against the current code (see "Running evals" below)
 3. **Reinstall**: `.venv/bin/python -m pip install -e .`
 

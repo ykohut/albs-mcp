@@ -1,8 +1,17 @@
 # albs-mcp
 
-MCP server for [AlmaLinux Build System](https://build.almalinux.org) (ALBS).
+MCP server and CLI for [AlmaLinux Build System](https://build.almalinux.org) (ALBS).
 
-Gives AI coding assistants (Cursor, Claude Desktop, etc.) direct access to ALBS — investigate build failures, create builds, sign packages, all through natural language.
+Gives AI coding assistants direct access to ALBS — investigate build failures, create builds, sign packages, all through natural language.
+
+Two ways to use:
+
+| | MCP server | CLI + Skill |
+|---|---|---|
+| How it works | AI calls tools via MCP protocol | AI runs `albs` commands via shell |
+| Setup | Add to MCP config | Install `albs` + add skill to your AI tool |
+| Best for | Dedicated ALBS workflow | Lightweight setup, avoiding MCP context pollution |
+| Works without AI | No | Yes (`albs` works as a standalone CLI) |
 
 ## What it can do
 
@@ -42,9 +51,11 @@ ALBS produces several log files per build task. The key ones for debugging:
 pip install git+https://github.com/AlmaLinux/albs-mcp.git
 ```
 
+This installs both the MCP server (`albs-mcp`) and the CLI (`albs`).
+
 ## Authentication
 
-The server reads the JWT token from (checked in order):
+The JWT token is read from (checked in order):
 
 1. `ALBS_JWT_TOKEN` environment variable
 2. `~/.albs/credentials` file (Python dict with a `token` key):
@@ -53,11 +64,13 @@ The server reads the JWT token from (checked in order):
 {"token": "eyJ..."}
 ```
 
-Without a token the server works in read-only mode.
+Without a token both MCP and CLI work in read-only mode.
 
 > **Never commit real tokens.** Use env vars or `~/.albs/credentials`, not CLI arguments.
 
-## Cursor / Claude Desktop config
+## Setup option 1: MCP server
+
+Add to your MCP client config (e.g. `mcp.json` or equivalent):
 
 ```json
 {
@@ -68,6 +81,67 @@ Without a token the server works in read-only mode.
   }
 }
 ```
+
+## Setup option 2: CLI + Skill
+
+For setups where MCP context pollution is a concern, or when using tools that don't support MCP.
+
+**Step 1.** Install the package (same as above — gives you the `albs` command):
+
+```bash
+pip install git+https://github.com/AlmaLinux/albs-mcp.git
+```
+
+**Step 2.** Add the workflow instructions to your AI tool:
+
+```bash
+# Copy the skill directory to your tool's skills location, e.g.:
+cp -r skills/albs-cli <YOUR_SKILLS_DIR>/albs-cli
+```
+
+Or copy the contents of `skills/albs-cli/SKILL.md` into your project's `AGENTS.md` or equivalent instructions file.
+
+The skill teaches the AI agent the same workflows (investigation order, EPEL handling, signing) but via `albs` shell commands instead of MCP tool calls.
+
+**Step 3.** Verify:
+
+```bash
+albs --help
+```
+
+The CLI also works standalone — no AI needed. Useful for scripts and manual terminal use.
+
+## CLI usage
+
+```bash
+# List platforms
+albs platforms
+
+# Investigate a build
+albs build-info 52679
+albs failed-tasks 52679
+albs download-log 52679 "mock_build.395391.1772974729.log"
+albs log-tail 52679 "mock_build.395391.1772974729.log" -n 200
+
+# Search builds
+albs search --project bash --page 2
+
+# Create a build (requires JWT)
+albs create-build AlmaLinux-9 bash --branch c9s
+albs create-build AlmaLinux-10 https://example.com/pkg.src.rpm \
+    --from-srpm --add-epel-dist --arch x86_64_v2 \
+    --flavor EPEL-10 --flavor EPEL-10_altarch
+
+# Sign a build (requires JWT)
+albs sign-keys
+albs sign-build 52679 --key-id 4
+
+# Pass token via flag or env var
+albs --token "eyJ..." sign-keys
+ALBS_JWT_TOKEN="eyJ..." albs sign-keys
+```
+
+Run `albs --help` or `albs <command> --help` for full usage.
 
 ## Tools reference
 
@@ -128,8 +202,8 @@ Architectures default to the full platform list (i686, x86_64, aarch64, ppc64le,
 ```bash
 pip install -e ".[test]"
 
-# Unit tests (no network, 82 tests)
-pytest tests/test_client_unit.py tests/test_server_unit.py -v
+# Unit tests (no network)
+pytest tests/test_client_unit.py tests/test_server_unit.py tests/test_cli_unit.py -v
 
 # Integration tests (hits real ALBS API, read-only, 21 tests)
 pytest tests/test_integration.py -v

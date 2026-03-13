@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 
-import albs_mcp.server as server_module
+import albs_mcp._commands as commands_module
 from albs_mcp.server import (
     get_build_info,
     get_failed_tasks,
@@ -89,9 +89,9 @@ SAMPLE_BUILD = {
 @pytest.fixture(autouse=True)
 def reset_client():
     """Reset the global client before each test."""
-    server_module._client = None
+    commands_module._client = None
     yield
-    server_module._client = None
+    commands_module._client = None
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def mock_client():
     client.read_log_range = MagicMock(return_value=("line 100\nline 101", 5000))
     client.create_build = AsyncMock(return_value={"id": 99999, "created_at": "2026-03-10T00:00:00"})
     client.sign_build = AsyncMock(return_value={"id": 888, "status": 1})
-    server_module._client = client
+    commands_module._client = client
     return client
 
 

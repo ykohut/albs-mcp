@@ -1,6 +1,6 @@
 # albs-mcp project rules
 
-MCP server for AlmaLinux Build System. Three source files: `constants.py` (config values), `client.py` (HTTP/API logic), `server.py` (MCP tool definitions and server instructions).
+MCP server and CLI for AlmaLinux Build System. Five source files: `constants.py` (config values), `client.py` (HTTP/API logic), `_commands.py` (shared command functions and formatting), `server.py` (MCP tool wrappers and server instructions), `cli.py` (CLI alternative via argparse).
 
 ## Project structure
 
@@ -8,10 +8,13 @@ MCP server for AlmaLinux Build System. Three source files: `constants.py` (confi
 src/albs_mcp/
   constants.py   — URLs, status maps, package lists, EPEL defaults
   client.py      — ALBSClient: all HTTP calls to ALBS API and log file I/O
-  server.py      — MCP tools (FastMCP), server instructions, CLI entrypoint
+  _commands.py   — shared command functions: client management, formatting, business logic
+  server.py      — thin @mcp.tool() wrappers delegating to _commands.py, server instructions
+  cli.py         — CLI (argparse), delegates to _commands.py functions
 tests/
   test_client_unit.py   — unit tests for ALBSClient (mocked HTTP)
-  test_server_unit.py   — unit tests for MCP tools (mocked client)
+  test_server_unit.py   — unit tests for MCP tools (mocked client via _commands)
+  test_cli_unit.py      — unit tests for CLI (mocked _commands functions)
   test_integration.py   — integration tests against real ALBS API (read-only)
 ```
 
@@ -42,8 +45,8 @@ tests/
 
 - Python 3.10+. Always use `from __future__ import annotations` at the top of each module.
 - Type hints on all public functions and method signatures.
-- Follow the existing file separation: constants and config in `constants.py`, all HTTP and file I/O in `client.py`, MCP tool definitions and formatting in `server.py`.
-- No code duplication. Every HTTP call or piece of logic must live in exactly one place. `client.py` owns all HTTP calls; `server.py` MCP tools call client methods and format output. Follow the `get_platforms` / `get_flavors` pattern: client method fetches data, server tool formats it, other client methods reuse the same client method internally.
+- Follow the existing file separation: constants and config in `constants.py`, all HTTP and file I/O in `client.py`, command logic and formatting in `_commands.py`, thin MCP wrappers in `server.py`, CLI in `cli.py`.
+- No code duplication. Every HTTP call or piece of logic must live in exactly one place. `client.py` owns all HTTP calls; `_commands.py` owns client management, formatting, and business logic; `server.py` has thin `@mcp.tool()` wrappers that delegate to `_commands.py`; `cli.py` delegates to `_commands.py` (no MCP dependency). Follow the `get_platforms` / `get_flavors` pattern: client method fetches data, `_commands` function formats it, other client methods reuse the same client method internally.
 - No hardcoded secrets or tokens anywhere in the code. Tokens are read from the `ALBS_JWT_TOKEN` env var or `~/.albs/credentials` file at runtime.
 
 ## Fail-fast, no silent errors
