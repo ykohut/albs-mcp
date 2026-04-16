@@ -540,6 +540,64 @@ def test_extract_el_version_el8():
 
 # ── create_build: add_epel_dist ──────────────────────────────────────
 
+# ── create_build: custom Git URLs ─────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_build_custom_git_url_branch(client):
+    """Custom Git URL is used as-is instead of git.almalinux.org prefix."""
+    client._platforms_cache = {"AlmaLinux-10": ["x86_64", "aarch64"]}
+    create_resp = {"id": 77777, "created_at": "2026-04-16T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    await client.create_build(
+        packages=[{"https://github.com/ykohut/leapp-data.git": "None"}],
+        platform="AlmaLinux-10",
+        branch="devel-ng-0.23.0",
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    task = call_data["tasks"][0]
+    assert task["url"] == "https://github.com/ykohut/leapp-data.git"
+    assert task["ref_type"] == 1
+    assert task["git_ref"] == "devel-ng-0.23.0"
+
+
+@pytest.mark.asyncio
+async def test_create_build_custom_git_url_from_tag(client):
+    """Custom Git URL with from_tag uses the URL as-is."""
+    client._platforms_cache = {"AlmaLinux-10": ["x86_64"]}
+    create_resp = {"id": 77776, "created_at": "2026-04-16T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    await client.create_build(
+        packages=[{"https://github.com/ykohut/leapp-data.git": "v0.23.0"}],
+        platform="AlmaLinux-10",
+        from_tag=True,
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    task = call_data["tasks"][0]
+    assert task["url"] == "https://github.com/ykohut/leapp-data.git"
+    assert task["ref_type"] == 2
+    assert task["git_ref"] == "v0.23.0"
+
+
+@pytest.mark.asyncio
+async def test_create_build_mixed_packages_and_git_urls(client):
+    """Regular package and custom Git URL in the same build."""
+    client._platforms_cache = {"AlmaLinux-10": ["x86_64"]}
+    create_resp = {"id": 77775, "created_at": "2026-04-16T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    await client.create_build(
+        packages=[
+            {"bash": "None"},
+            {"https://github.com/ykohut/leapp-data.git": "None"},
+        ],
+        platform="AlmaLinux-10",
+        branch="c10s",
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    tasks = call_data["tasks"]
+    assert tasks[0]["url"] == "https://git.almalinux.org/rpms/bash.git"
+    assert tasks[1]["url"] == "https://github.com/ykohut/leapp-data.git"
+
+
 @pytest.mark.asyncio
 async def test_create_build_add_epel_dist_from_srpm(client):
     client._platforms_cache = {"AlmaLinux-10": ["x86_64_v2"]}

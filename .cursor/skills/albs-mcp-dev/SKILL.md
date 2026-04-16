@@ -35,7 +35,7 @@ Never skip evals. Never ask the user to run them. Every change can break agent w
 
 ## Running evals
 
-Eval definitions live in [evals/evals.json](evals/evals.json) inside this skill directory — 20 cases across 5 categories.
+Eval definitions live in [evals/evals.json](evals/evals.json) inside this skill directory — 22 cases across 5 categories.
 
 After any code change:
 

@@ -91,7 +91,8 @@ def _cmd_flavors(args: argparse.Namespace) -> None:
 def _cmd_create_build(args: argparse.Namespace) -> None:
     _exec(cmd.create_build(
         platform=args.platform,
-        packages=args.packages,
+        packages=args.packages or None,
+        git_urls=args.git_url or None,
         branch=args.branch,
         from_tag=args.from_tag,
         from_srpm=args.from_srpm,
@@ -208,7 +209,11 @@ def build_parser() -> argparse.ArgumentParser:
     # ── create-build ──────────────────────────────────────────────────
     p = sub.add_parser("create-build", help="Create a new build (requires JWT).")
     p.add_argument("platform", help="Target platform.")
-    p.add_argument("packages", nargs="+", help="Package names or SRPM URLs.")
+    p.add_argument("packages", nargs="*", default=[], help="Package names or SRPM URLs.")
+    p.add_argument(
+        "--git-url", action="append", default=[],
+        help="Custom Git repo URL (repeat for multiple). Use for repos outside git.almalinux.org.",
+    )
     p.add_argument("--branch", default=None, help="Git branch (e.g. c9s, c10s).")
     p.add_argument("--from-tag", action="store_true", help="Build from git tags.")
     p.add_argument("--from-srpm", action="store_true", help="Build from SRPM URLs.")

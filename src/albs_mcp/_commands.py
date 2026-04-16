@@ -269,7 +269,8 @@ async def get_flavors() -> str:
 
 async def create_build(
     platform: str,
-    packages: list[str],
+    packages: list[str] | None = None,
+    git_urls: list[str] | None = None,
     branch: str | None = None,
     from_tag: bool = False,
     from_srpm: bool = False,
@@ -288,20 +289,45 @@ async def create_build(
     without_opts: list[str] | None = None,
     modules: list[str] | None = None,
 ) -> str:
+    if not packages and not git_urls:
+        return "Error: at least one of packages or git_urls must be provided."
+    if git_urls and from_srpm:
+        return (
+            "Error: git_urls cannot be used with from_srpm. "
+            "git_urls are Git repository URLs, not SRPM URLs. "
+            "Use packages for SRPM URLs."
+        )
+
     pkg_dicts: list[dict[str, str]] = []
-    if from_tag:
-        for i, p in enumerate(packages):
-            parts = p.strip().split(None, 1)
-            if len(parts) == 2:
-                pkg_dicts.append({parts[0]: parts[1]})
-            elif tags and i < len(tags):
-                pkg_dicts.append({p: tags[i]})
+
+    if packages:
+        if from_tag:
+            for i, p in enumerate(packages):
+                parts = p.strip().split(None, 1)
+                if len(parts) == 2:
+                    pkg_dicts.append({parts[0]: parts[1]})
+                elif tags and i < len(tags):
+                    pkg_dicts.append({p: tags[i]})
+                else:
+                    name = "-".join(p.split("/")[-1].split("-")[:-2])
+                    pkg_dicts.append({name: p})
+        else:
+            for p in packages:
+                pkg_dicts.append({p.strip(): "None"})
+
+    if git_urls:
+        for url in git_urls:
+            if from_tag:
+                parts = url.strip().split(None, 1)
+                if len(parts) == 2:
+                    pkg_dicts.append({parts[0]: parts[1]})
+                else:
+                    return (
+                        "Error: git_urls with from_tag requires 'url tag' format. "
+                        f"Got: {url}"
+                    )
             else:
-                name = "-".join(p.split("/")[-1].split("-")[:-2])
-                pkg_dicts.append({name: p})
-    else:
-        for p in packages:
-            pkg_dicts.append({p.strip(): "None"})
+                pkg_dicts.append({url.strip(): "None"})
 
     defs = json.loads(definitions) if definitions else None
     excl = excludes.split() if excludes else None

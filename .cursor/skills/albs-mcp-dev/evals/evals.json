@@ -258,6 +258,34 @@
         "The agent tells the user the build was not found (does not fabricate information)"
       ],
       "files": []
+    },
+    {
+      "id": 21,
+      "name": "custom_git_url_build",
+      "category": "tool_selection",
+      "prompt": "Build https://github.com/ykohut/leapp-data.git branch devel-ng-0.23.0 for AlmaLinux-10",
+      "expected_output": "Agent calls create_build with git_urls containing the GitHub URL, branch='devel-ng-0.23.0', platform='AlmaLinux-10'. Does NOT put the URL in packages.",
+      "criteria": [
+        "The agent calls create_build",
+        "create_build is called with git_urls containing 'https://github.com/ykohut/leapp-data.git'",
+        "create_build is called with branch='devel-ng-0.23.0' (or similar)",
+        "The agent does NOT put the GitHub URL in the packages parameter"
+      ],
+      "files": []
+    },
+    {
+      "id": 22,
+      "name": "custom_git_url_with_regular_packages",
+      "category": "tool_selection",
+      "prompt": "Build bash and https://github.com/ykohut/leapp-data.git together on AlmaLinux-10 from branch c10s",
+      "expected_output": "Agent calls create_build with packages=['bash'] and git_urls=['https://github.com/ykohut/leapp-data.git'], branch='c10s'.",
+      "criteria": [
+        "The agent calls create_build",
+        "create_build is called with packages containing 'bash'",
+        "create_build is called with git_urls containing 'https://github.com/ykohut/leapp-data.git'",
+        "create_build is called with branch='c10s'"
+      ],
+      "files": []
     }
   ]
 }

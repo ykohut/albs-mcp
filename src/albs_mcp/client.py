@@ -204,8 +204,9 @@ class ALBSClient:
         tasks = []
         for pkg in packages:
             for pkg_name, pkg_tag in pkg.items():
+                is_url = pkg_name.startswith(("http://", "https://"))
                 task: dict[str, Any] = {
-                    "url": pkg_name if ref_type == 3
+                    "url": pkg_name if (ref_type == 3 or is_url)
                     else f"https://git.almalinux.org/rpms/{pkg_name}.git",
                     "ref_type": ref_type,
                     "module_platform_version": "null",

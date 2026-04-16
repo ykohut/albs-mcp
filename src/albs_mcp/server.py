@@ -37,6 +37,11 @@ whole file at once. Always use read_log_tail first, then read_log_range if neede
 If you need to show available platforms, call get_platforms().
 5. Use skip_tests=True to disable the %check phase in any build. \
 This adds --define "__spec_check_template exit 0;" to the mock definitions.
+6. For external Git repositories (outside git.almalinux.org/rpms), use the git_urls \
+parameter instead of packages. Pass the full .git URL \
+(e.g. "https://github.com/user/repo.git"). The branch parameter sets the git ref. \
+git_urls can be combined with packages in the same build. \
+git_urls cannot be used with from_srpm.
 
 ## Building EPEL packages (SRPMs from dl.fedoraproject.org/pub/epel/)
 When a user wants to build packages from EPEL SRPMs, you MUST handle the following \
@@ -199,7 +204,8 @@ async def get_flavors() -> str:
 @mcp.tool()
 async def create_build(
     platform: str,
-    packages: list[str],
+    packages: list[str] | None = None,
+    git_urls: list[str] | None = None,
     branch: str | None = None,
     from_tag: bool = False,
     from_srpm: bool = False,
@@ -230,6 +236,12 @@ async def create_build(
         platform: Target platform. Use get_platforms to see available options.
         packages: List of package names (for git/branch) or SRPM URLs (for from_srpm).
                   For from_tag: use "pkg_name tag_name" format or just "tag_name".
+                  At least one of packages or git_urls must be provided.
+        git_urls: List of custom Git repository URLs to build from
+                  (e.g. ["https://github.com/user/repo.git"]). Use for repos
+                  outside git.almalinux.org/rpms. The branch parameter sets the
+                  git ref. For from_tag, use "url tag_name" format.
+                  Cannot be used with from_srpm.
         branch: Git branch to build from (e.g. "a8", "c9s").
         from_tag: Build from git tags instead of branch.
         from_srpm: Build from source RPM URLs.
@@ -257,6 +269,7 @@ async def create_build(
     return await cmd.create_build(
         platform=platform,
         packages=packages,
+        git_urls=git_urls,
         branch=branch,
         from_tag=from_tag,
         from_srpm=from_srpm,
