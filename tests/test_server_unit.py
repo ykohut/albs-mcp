@@ -348,6 +348,81 @@ async def test_create_build_validation_error(mock_client):
     assert "Error creating build" in result
 
 
+# ── create_build: git_urls ────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_build_git_urls(mock_client):
+    result = await create_build(
+        git_urls=["https://github.com/ykohut/leapp-data.git"],
+        platform="AlmaLinux-10",
+        branch="devel-ng-0.23.0",
+    )
+    assert "Build created successfully" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["packages"] == [{"https://github.com/ykohut/leapp-data.git": "None"}]
+
+
+@pytest.mark.asyncio
+async def test_create_build_git_urls_from_tag(mock_client):
+    result = await create_build(
+        git_urls=["https://github.com/ykohut/leapp-data.git v0.23.0"],
+        platform="AlmaLinux-10",
+        from_tag=True,
+    )
+    assert "Build created successfully" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["packages"] == [
+        {"https://github.com/ykohut/leapp-data.git": "v0.23.0"}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_create_build_git_urls_with_packages(mock_client):
+    result = await create_build(
+        packages=["bash"],
+        git_urls=["https://github.com/ykohut/leapp-data.git"],
+        platform="AlmaLinux-10",
+        branch="c10s",
+    )
+    assert "Build created successfully" in result
+    call_args = mock_client.create_build.call_args[1]
+    pkgs = call_args["packages"]
+    assert {"bash": "None"} in pkgs
+    assert {"https://github.com/ykohut/leapp-data.git": "None"} in pkgs
+
+
+@pytest.mark.asyncio
+async def test_create_build_git_urls_no_packages_no_urls():
+    result = await create_build(
+        platform="AlmaLinux-10",
+        branch="c10s",
+    )
+    assert "Error" in result
+    assert "packages or git_urls" in result
+
+
+@pytest.mark.asyncio
+async def test_create_build_git_urls_with_from_srpm():
+    result = await create_build(
+        git_urls=["https://github.com/ykohut/leapp-data.git"],
+        platform="AlmaLinux-10",
+        from_srpm=True,
+    )
+    assert "Error" in result
+    assert "from_srpm" in result
+
+
+@pytest.mark.asyncio
+async def test_create_build_git_urls_from_tag_missing_tag():
+    result = await create_build(
+        git_urls=["https://github.com/ykohut/leapp-data.git"],
+        platform="AlmaLinux-10",
+        from_tag=True,
+    )
+    assert "Error" in result
+    assert "url tag" in result
+
+
 # ── create_build: skip_tests ──────────────────────────────────────────
 
 @pytest.mark.asyncio

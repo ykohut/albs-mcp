@@ -255,9 +255,59 @@ def test_create_build_skip_tests():
     assert call_kw["skip_tests"] is True
 
 
-def test_create_build_missing_packages():
-    with pytest.raises(SystemExit):
-        build_parser().parse_args(["create-build", "AlmaLinux-9"])
+def test_create_build_git_url():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-10",
+            "--git-url", "https://github.com/ykohut/leapp-data.git",
+            "--branch", "devel-ng-0.23.0",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["git_urls"] == ["https://github.com/ykohut/leapp-data.git"]
+    assert call_kw["packages"] is None
+    assert call_kw["branch"] == "devel-ng-0.23.0"
+
+
+def test_create_build_git_url_with_packages():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-10", "bash",
+            "--git-url", "https://github.com/ykohut/leapp-data.git",
+            "--branch", "c10s",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["packages"] == ["bash"]
+    assert call_kw["git_urls"] == ["https://github.com/ykohut/leapp-data.git"]
+
+
+def test_create_build_multiple_git_urls():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-10",
+            "--git-url", "https://github.com/user/repo1.git",
+            "--git-url", "https://github.com/user/repo2.git",
+            "--branch", "main",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["git_urls"] == [
+        "https://github.com/user/repo1.git",
+        "https://github.com/user/repo2.git",
+    ]
+
+
+def test_create_build_no_packages_no_git_url():
+    """CLI allows no packages (nargs='*'), but _commands validates."""
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Error: at least one of packages or git_urls must be provided."
+        code, out = _invoke(["create-build", "AlmaLinux-10", "--branch", "c10s"])
+    assert code == 1
+    assert "Error" in out
 
 
 # ── sign-build ────────────────────────────────────────────────────────

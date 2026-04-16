@@ -25,7 +25,7 @@ Two ways to use:
 
 ### With a JWT token (authenticated)
 
-- **Create builds** — specify packages, platform, branch/tag/SRPM. Architectures default to the platform's full list unless you override. Supports all mkbuild.py options: linked builds, mock definitions, excludes, flavors, secureboot, modules, with/without.
+- **Create builds** — specify packages, platform, branch/tag/SRPM. Architectures default to the platform's full list unless you override. Supports custom Git URLs for repos outside `git.almalinux.org` (e.g. GitHub, GitLab). Supports all mkbuild.py options: linked builds, mock definitions, excludes, flavors, secureboot, modules, with/without.
 - **Sign builds** — create sign tasks with a chosen key.
 - **List sign keys** — see available keys with IDs and platform mappings.
 - **Delete builds** — intentionally blocked for safety.
@@ -132,6 +132,11 @@ albs create-build AlmaLinux-10 https://example.com/pkg.src.rpm \
     --from-srpm --add-epel-dist --arch x86_64_v2 \
     --flavor EPEL-10 --flavor EPEL-10_altarch
 
+# Build from an external Git repo (e.g. GitHub)
+albs create-build AlmaLinux-10 \
+    --git-url https://github.com/ykohut/leapp-data.git \
+    --branch devel-ng-0.23.0
+
 # Sign a build (requires JWT)
 albs sign-keys
 albs sign-build 52679 --key-id 4
@@ -163,7 +168,7 @@ Run `albs --help` or `albs <command> --help` for full usage.
 | Tool | Description |
 |---|---|
 | `get_sign_keys` | List sign keys: ID, name, GPG keyid, active status, platform mappings |
-| `create_build` | Create a build: packages + platform + branch/tag/srpm, with all mock options |
+| `create_build` | Create a build: packages or custom Git URLs + platform + branch/tag/srpm, with all mock options |
 | `sign_build` | Create a sign task for a build with a chosen key |
 | `delete_build` | **Blocked** — disabled for safety |
 
@@ -193,6 +198,11 @@ Ask the agent: *"Build bash for AlmaLinux-9 from branch c9s"*
 The agent will call:
 ```
 create_build(packages=["bash"], platform="AlmaLinux-9", branch="c9s")
+```
+
+For external Git repos (e.g. GitHub), use `git_urls`:
+```
+create_build(git_urls=["https://github.com/ykohut/leapp-data.git"], platform="AlmaLinux-10", branch="devel-ng-0.23.0")
 ```
 
 Architectures default to the full platform list (i686, x86_64, aarch64, ppc64le, s390x).
