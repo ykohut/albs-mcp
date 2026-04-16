@@ -25,7 +25,7 @@ Two ways to use:
 
 ### With a JWT token (authenticated)
 
-- **Create builds** — specify packages, platform, branch/tag/SRPM. Architectures default to the platform's full list unless you override. Supports custom Git URLs for repos outside `git.almalinux.org` (e.g. GitHub, GitLab). Supports all mkbuild.py options: linked builds, mock definitions, excludes, flavors, secureboot, modules, with/without.
+- **Create builds** — specify packages, platform(s), branch/tag/SRPM. Supports multiple platforms in a single build (e.g. AlmaLinux-8 + AlmaLinux-9). Architectures default to each platform's full list unless you override. Supports custom Git URLs for repos outside `git.almalinux.org` (e.g. GitHub, GitLab). Supports all mkbuild.py options: linked builds, mock definitions, excludes, flavors, secureboot, modules, with/without.
 - **Sign builds** — create sign tasks with a chosen key.
 - **List sign keys** — see available keys with IDs and platform mappings.
 - **Delete builds** — intentionally blocked for safety.
@@ -132,6 +132,10 @@ albs create-build AlmaLinux-10 https://example.com/pkg.src.rpm \
     --from-srpm --add-epel-dist --arch x86_64_v2 \
     --flavor EPEL-10 --flavor EPEL-10_altarch
 
+# Build on multiple platforms at once
+albs create-build AlmaLinux-8 bash --branch c9s \
+    --add-platform AlmaLinux-9
+
 # Build from an external Git repo (e.g. GitHub)
 albs create-build AlmaLinux-10 \
     --git-url https://github.com/ykohut/leapp-data.git \
@@ -168,7 +172,7 @@ Run `albs --help` or `albs <command> --help` for full usage.
 | Tool | Description |
 |---|---|
 | `get_sign_keys` | List sign keys: ID, name, GPG keyid, active status, platform mappings |
-| `create_build` | Create a build: packages or custom Git URLs + platform + branch/tag/srpm, with all mock options |
+| `create_build` | Create a build: packages or custom Git URLs + platform(s) + branch/tag/srpm, with all mock options |
 | `sign_build` | Create a sign task for a build with a chosen key |
 | `delete_build` | **Blocked** — disabled for safety |
 
@@ -200,12 +204,17 @@ The agent will call:
 create_build(packages=["bash"], platform="AlmaLinux-9", branch="c9s")
 ```
 
+For multiple platforms at once:
+```
+create_build(packages=["bash"], platforms=["AlmaLinux-8", "AlmaLinux-9"], branch="c9s")
+```
+
 For external Git repos (e.g. GitHub), use `git_urls`:
 ```
 create_build(git_urls=["https://github.com/ykohut/leapp-data.git"], platform="AlmaLinux-10", branch="devel-ng-0.23.0")
 ```
 
-Architectures default to the full platform list (i686, x86_64, aarch64, ppc64le, s390x).
+Architectures default to each platform's full list. When `arch_list` is specified with multiple platforms, it is validated against each platform individually.
 
 ## Tests
 

@@ -423,6 +423,46 @@ async def test_create_build_git_urls_from_tag_missing_tag():
     assert "url tag" in result
 
 
+# ── create_build: platforms (multi-platform) ──────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_build_platforms_list(mock_client):
+    """Using platforms= list instead of platform= string."""
+    result = await create_build(
+        packages=["bash"],
+        platforms=["AlmaLinux-9", "AlmaLinux-10"],
+        branch="c9s",
+    )
+    assert "Build created successfully" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["platforms"] == ["AlmaLinux-9", "AlmaLinux-10"]
+
+
+@pytest.mark.asyncio
+async def test_create_build_platform_and_platforms_merged(mock_client):
+    """platform + platforms are merged (deduped) before passing to client."""
+    result = await create_build(
+        packages=["bash"],
+        platform="AlmaLinux-8",
+        platforms=["AlmaLinux-9", "AlmaLinux-8"],
+        branch="c9s",
+    )
+    assert "Build created successfully" in result
+    call_args = mock_client.create_build.call_args[1]
+    assert call_args["platforms"] == ["AlmaLinux-8", "AlmaLinux-9"]
+
+
+@pytest.mark.asyncio
+async def test_create_build_no_platform_no_platforms():
+    """Omitting both platform and platforms returns an error."""
+    result = await create_build(
+        packages=["bash"],
+        branch="c9s",
+    )
+    assert "Error" in result
+    assert "platform or platforms" in result
+
+
 # ── create_build: skip_tests ──────────────────────────────────────────
 
 @pytest.mark.asyncio

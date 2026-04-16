@@ -286,6 +286,20 @@
         "create_build is called with branch='c10s'"
       ],
       "files": []
+    },
+    {
+      "id": 23,
+      "name": "multi_platform_build",
+      "category": "tool_selection",
+      "prompt": "Build bash from branch c9s on both AlmaLinux-8 and AlmaLinux-9",
+      "expected_output": "Agent calls create_build with platforms=['AlmaLinux-8', 'AlmaLinux-9'] (or platform='AlmaLinux-8' + platforms=['AlmaLinux-9']), packages=['bash'], branch='c9s'.",
+      "criteria": [
+        "The agent calls create_build",
+        "create_build includes both AlmaLinux-8 and AlmaLinux-9 via the platform and/or platforms parameters",
+        "create_build is called with packages containing 'bash'",
+        "create_build is called with branch='c9s'"
+      ],
+      "files": []
     }
   ]
 }

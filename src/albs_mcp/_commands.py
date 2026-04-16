@@ -268,7 +268,8 @@ async def get_flavors() -> str:
 
 
 async def create_build(
-    platform: str,
+    platform: str | None = None,
+    platforms: list[str] | None = None,
     packages: list[str] | None = None,
     git_urls: list[str] | None = None,
     branch: str | None = None,
@@ -289,6 +290,16 @@ async def create_build(
     without_opts: list[str] | None = None,
     modules: list[str] | None = None,
 ) -> str:
+    all_platforms: list[str] = []
+    if platform:
+        all_platforms.append(platform)
+    if platforms:
+        for p in platforms:
+            if p not in all_platforms:
+                all_platforms.append(p)
+    if not all_platforms:
+        return "Error: at least one of platform or platforms must be provided."
+
     if not packages and not git_urls:
         return "Error: at least one of packages or git_urls must be provided."
     if git_urls and from_srpm:
@@ -354,7 +365,7 @@ async def create_build(
     try:
         result = await client.create_build(
             packages=pkg_dicts,
-            platform=platform,
+            platforms=all_platforms,
             arch_list=arch_list,
             branch=branch,
             from_tag=from_tag,

@@ -310,6 +310,47 @@ def test_create_build_no_packages_no_git_url():
     assert "Error" in out
 
 
+def test_create_build_add_platform():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-8", "bash",
+            "--add-platform", "AlmaLinux-9",
+            "--branch", "c9s",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["platform"] == "AlmaLinux-8"
+    assert call_kw["platforms"] == ["AlmaLinux-9"]
+
+
+def test_create_build_multiple_add_platforms():
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-8", "bash",
+            "--add-platform", "AlmaLinux-9",
+            "--add-platform", "AlmaLinux-10",
+            "--branch", "c9s",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["platform"] == "AlmaLinux-8"
+    assert call_kw["platforms"] == ["AlmaLinux-9", "AlmaLinux-10"]
+
+
+def test_create_build_no_add_platform():
+    """Without --add-platform, platforms should be None."""
+    with patch("albs_mcp._commands.create_build", new_callable=AsyncMock) as mock:
+        mock.return_value = "Build created successfully!"
+        code, out = _invoke([
+            "create-build", "AlmaLinux-9", "bash", "--branch", "c9s",
+        ])
+    assert code == 0
+    call_kw = mock.call_args[1]
+    assert call_kw["platforms"] is None
+
+
 # ── sign-build ────────────────────────────────────────────────────────
 
 

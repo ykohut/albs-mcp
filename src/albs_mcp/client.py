@@ -154,7 +154,7 @@ class ALBSClient:
     async def create_build(
         self,
         packages: list[dict[str, str]],
-        platform: str,
+        platforms: list[str],
         arch_list: list[str] | None = None,
         branch: str | None = None,
         from_tag: bool = False,
@@ -177,19 +177,25 @@ class ALBSClient:
             raise ValueError("from_tag and branch cannot be used together")
 
         platform_arches = await self.get_platform_arches()
-        if platform not in platform_arches:
-            raise ValueError(
-                f"Unknown platform '{platform}'. "
-                f"Available: {', '.join(sorted(platform_arches))}"
-            )
-
-        allowed = platform_arches[platform]
-        arches = arch_list or allowed
-        bad = [a for a in arches if a not in allowed]
-        if bad:
-            raise ValueError(
-                f"Arch(es) {bad} not allowed for {platform}. Allowed: {allowed}"
-            )
+        platform_entries: list[dict[str, Any]] = []
+        for plat in platforms:
+            if plat not in platform_arches:
+                raise ValueError(
+                    f"Unknown platform '{plat}'. "
+                    f"Available: {', '.join(sorted(platform_arches))}"
+                )
+            allowed = platform_arches[plat]
+            arches = arch_list or allowed
+            bad = [a for a in arches if a not in allowed]
+            if bad:
+                raise ValueError(
+                    f"Arch(es) {bad} not allowed for {plat}. Allowed: {allowed}"
+                )
+            platform_entries.append({
+                "name": plat,
+                "arch_list": arches,
+                "parallel_mode_enabled": True,
+            })
 
         if not nosecureboot:
             for pkg in packages:
@@ -223,13 +229,7 @@ class ALBSClient:
                 tasks.append(task)
 
         data: dict[str, Any] = {
-            "platforms": [
-                {
-                    "name": platform,
-                    "arch_list": arches,
-                    "parallel_mode_enabled": True,
-                }
-            ],
+            "platforms": platform_entries,
             "tasks": tasks,
             "is_secure_boot": secureboot,
             "product_id": 1,
