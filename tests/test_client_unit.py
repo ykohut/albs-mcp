@@ -356,7 +356,7 @@ async def test_create_build_branch(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     result = await client.create_build(
         packages=[{"bash": "None"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         branch="c9s",
     )
     assert result["id"] == 99999
@@ -373,7 +373,7 @@ async def test_create_build_from_tag(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     result = await client.create_build(
         packages=[{"bash": "imports/c9s/bash-5.1-1.el9"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         from_tag=True,
     )
     call_data = client._http.post.call_args[1]["json"]
@@ -388,7 +388,7 @@ async def test_create_build_from_srpm(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"https://example.com/pkg.src.rpm": "None"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         from_srpm=True,
     )
     call_data = client._http.post.call_args[1]["json"]
@@ -402,7 +402,7 @@ async def test_create_build_no_branch_or_tag(client):
     client._platforms_cache = {"AlmaLinux-9": ["x86_64"]}
     with pytest.raises(ValueError, match="At least one"):
         await client.create_build(
-            packages=[{"bash": "None"}], platform="AlmaLinux-9"
+            packages=[{"bash": "None"}], platforms=["AlmaLinux-9"]
         )
 
 
@@ -412,7 +412,7 @@ async def test_create_build_both_branch_and_tag(client):
     with pytest.raises(ValueError, match="cannot be used together"):
         await client.create_build(
             packages=[{"bash": "None"}],
-            platform="AlmaLinux-9",
+            platforms=["AlmaLinux-9"],
             branch="c9s",
             from_tag=True,
         )
@@ -424,7 +424,7 @@ async def test_create_build_bad_platform(client):
     with pytest.raises(ValueError, match="Unknown platform"):
         await client.create_build(
             packages=[{"bash": "None"}],
-            platform="FedoraXYZ",
+            platforms=["FedoraXYZ"],
             branch="main",
         )
 
@@ -435,7 +435,7 @@ async def test_create_build_bad_arch(client):
     with pytest.raises(ValueError, match="not allowed"):
         await client.create_build(
             packages=[{"bash": "None"}],
-            platform="AlmaLinux-9",
+            platforms=["AlmaLinux-9"],
             branch="c9s",
             arch_list=["riscv64"],
         )
@@ -447,7 +447,7 @@ async def test_create_build_secureboot_required(client):
     with pytest.raises(ValueError, match="secureboot"):
         await client.create_build(
             packages=[{"kernel": "None"}],
-            platform="AlmaLinux-9",
+            platforms=["AlmaLinux-9"],
             branch="c9s",
         )
 
@@ -459,7 +459,7 @@ async def test_create_build_secureboot_nosecureboot_override(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     result = await client.create_build(
         packages=[{"kernel": "None"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         branch="c9s",
         nosecureboot=True,
     )
@@ -473,7 +473,7 @@ async def test_create_build_mock_options(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"bash": "None"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         branch="c9s",
         excludes=["pkg1", "pkg2"],
         definitions={"dist": ".el9"},
@@ -497,7 +497,7 @@ async def test_create_build_linked_builds(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"bash": "None"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         branch="c9s",
         linked_builds=[100, 200],
     )
@@ -550,7 +550,7 @@ async def test_create_build_custom_git_url_branch(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"https://github.com/ykohut/leapp-data.git": "None"}],
-        platform="AlmaLinux-10",
+        platforms=["AlmaLinux-10"],
         branch="devel-ng-0.23.0",
     )
     call_data = client._http.post.call_args[1]["json"]
@@ -568,7 +568,7 @@ async def test_create_build_custom_git_url_from_tag(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"https://github.com/ykohut/leapp-data.git": "v0.23.0"}],
-        platform="AlmaLinux-10",
+        platforms=["AlmaLinux-10"],
         from_tag=True,
     )
     call_data = client._http.post.call_args[1]["json"]
@@ -589,7 +589,7 @@ async def test_create_build_mixed_packages_and_git_urls(client):
             {"bash": "None"},
             {"https://github.com/ykohut/leapp-data.git": "None"},
         ],
-        platform="AlmaLinux-10",
+        platforms=["AlmaLinux-10"],
         branch="c10s",
     )
     call_data = client._http.post.call_args[1]["json"]
@@ -606,7 +606,7 @@ async def test_create_build_add_epel_dist_from_srpm(client):
     url = "https://dl.fedoraproject.org/pub/epel/10/Everything/source/tree/Packages/p/pkg-1.0-1.el10.src.rpm"
     await client.create_build(
         packages=[{url: "None"}],
-        platform="AlmaLinux-10",
+        platforms=["AlmaLinux-10"],
         from_srpm=True,
         add_epel_dist=True,
     )
@@ -622,7 +622,7 @@ async def test_create_build_add_epel_dist_from_tag(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"imports/c9s/bash-5.1-1.el9": "imports/c9s/bash-5.1-1.el9"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         from_tag=True,
         add_epel_dist=True,
     )
@@ -639,7 +639,7 @@ async def test_create_build_add_epel_dist_no_el_version(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"https://example.com/pkg-nodist.src.rpm": "None"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         from_srpm=True,
         add_epel_dist=True,
     )
@@ -656,13 +656,73 @@ async def test_create_build_add_epel_dist_ignored_for_branch(client):
     client._http.post = AsyncMock(return_value=_mock_response(create_resp))
     await client.create_build(
         packages=[{"bash": "None"}],
-        platform="AlmaLinux-9",
+        platforms=["AlmaLinux-9"],
         branch="c9s",
         add_epel_dist=True,
     )
     call_data = client._http.post.call_args[1]["json"]
     task = call_data["tasks"][0]
     assert "mock_options" not in task
+
+
+# ── create_build: multiple platforms ──────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_build_multiple_platforms(client):
+    """Build on two platforms produces two platform entries in the payload."""
+    client._platforms_cache = {
+        "AlmaLinux-8": ["x86_64", "aarch64"],
+        "AlmaLinux-9": ["x86_64", "aarch64", "s390x"],
+    }
+    create_resp = {"id": 77770, "created_at": "2026-04-16T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    result = await client.create_build(
+        packages=[{"bash": "None"}],
+        platforms=["AlmaLinux-8", "AlmaLinux-9"],
+        branch="c9s",
+    )
+    assert result["id"] == 77770
+    call_data = client._http.post.call_args[1]["json"]
+    plat_names = [p["name"] for p in call_data["platforms"]]
+    assert plat_names == ["AlmaLinux-8", "AlmaLinux-9"]
+    assert call_data["platforms"][0]["arch_list"] == ["x86_64", "aarch64"]
+    assert call_data["platforms"][1]["arch_list"] == ["x86_64", "aarch64", "s390x"]
+
+
+@pytest.mark.asyncio
+async def test_create_build_multiple_platforms_with_arch_list(client):
+    """Explicit arch_list is validated against each platform."""
+    client._platforms_cache = {
+        "AlmaLinux-8": ["x86_64", "aarch64"],
+        "AlmaLinux-9": ["x86_64", "aarch64", "s390x"],
+    }
+    create_resp = {"id": 77769, "created_at": "2026-04-16T00:00:00"}
+    client._http.post = AsyncMock(return_value=_mock_response(create_resp))
+    await client.create_build(
+        packages=[{"bash": "None"}],
+        platforms=["AlmaLinux-8", "AlmaLinux-9"],
+        branch="c9s",
+        arch_list=["x86_64"],
+    )
+    call_data = client._http.post.call_args[1]["json"]
+    assert call_data["platforms"][0]["arch_list"] == ["x86_64"]
+    assert call_data["platforms"][1]["arch_list"] == ["x86_64"]
+
+
+@pytest.mark.asyncio
+async def test_create_build_multiple_platforms_bad_arch(client):
+    """Arch not allowed on one platform raises error for that platform."""
+    client._platforms_cache = {
+        "AlmaLinux-8": ["x86_64", "aarch64"],
+        "AlmaLinux-9": ["x86_64", "aarch64", "s390x"],
+    }
+    with pytest.raises(ValueError, match="not allowed for AlmaLinux-8"):
+        await client.create_build(
+            packages=[{"bash": "None"}],
+            platforms=["AlmaLinux-8", "AlmaLinux-9"],
+            branch="c9s",
+            arch_list=["s390x"],
+        )
 
 
 # ── sign_build ────────────────────────────────────────────────────────

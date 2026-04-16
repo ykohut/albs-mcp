@@ -30,11 +30,14 @@ sections of the log.
 whole file at once. Always use read_log_tail first, then read_log_range if needed.
 
 ## Creating builds (requires JWT token)
-1. ASK the user for: package name(s), platform, and how to build (branch/tag/srpm URL).
+1. ASK the user for: package name(s), platform(s), and how to build (branch/tag/srpm URL).
 2. If the user did NOT specify architectures, use the platform defaults (do NOT ask).
-3. Call create_build() with the collected parameters.
+3. Call create_build() with the collected parameters. Use platform for a single platform, \
+or platforms for multiple (e.g. platforms=["AlmaLinux-8", "AlmaLinux-9"]). \
+Both can be combined; duplicates are removed automatically.
 4. Platform names and arch_list are validated dynamically against ALBS. \
-If you need to show available platforms, call get_platforms().
+If you need to show available platforms, call get_platforms(). \
+When arch_list is specified with multiple platforms, it is validated against each platform.
 5. Use skip_tests=True to disable the %check phase in any build. \
 This adds --define "__spec_check_template exit 0;" to the mock definitions.
 6. For external Git repositories (outside git.almalinux.org/rpms), use the git_urls \
@@ -203,7 +206,8 @@ async def get_flavors() -> str:
 
 @mcp.tool()
 async def create_build(
-    platform: str,
+    platform: str | None = None,
+    platforms: list[str] | None = None,
     packages: list[str] | None = None,
     git_urls: list[str] | None = None,
     branch: str | None = None,
@@ -233,7 +237,9 @@ async def create_build(
     automatically applies EPEL-specific flavors and defaults arch to x86_64_v2.
 
     Args:
-        platform: Target platform. Use get_platforms to see available options.
+        platform: Target platform (single). Use get_platforms to see available options.
+        platforms: List of target platforms to build on (e.g. ["AlmaLinux-8", "AlmaLinux-9"]).
+                   Can be used alone or combined with platform. At least one must be provided.
         packages: List of package names (for git/branch) or SRPM URLs (for from_srpm).
                   For from_tag: use "pkg_name tag_name" format or just "tag_name".
                   At least one of packages or git_urls must be provided.
@@ -268,6 +274,7 @@ async def create_build(
     """
     return await cmd.create_build(
         platform=platform,
+        platforms=platforms,
         packages=packages,
         git_urls=git_urls,
         branch=branch,
